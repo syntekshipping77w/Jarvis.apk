@@ -1,0 +1,56 @@
+
+name: Build JARVIS APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/main.yml'
+      - 'JARVIS_App_Builder/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar arquivos
+        uses: actions/checkout@v4
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Preparar projeto
+        run: |
+          mkdir -p app
+          if [ -f JARVIS_App_Builder.zip ]; then
+            unzip -o JARVIS_App_Builder.zip -d extracted
+          elif [ -f JARVIS_App_APK_Builder.zip ]; then
+            unzip -o JARVIS_App_APK_Builder.zip -d extracted
+          else
+            echo "ZIP do projeto não encontrado"
+            exit 1
+          fi
+          find extracted -name gradlew -type f | head
+          find extracted -name settings.gradle.kts -type f
+          find extracted -name build.gradle.kts -type f
+          ROOT=$(find extracted -name settings.gradle.kts -type f -printf '%h\n' | head -1)
+          if [ -z "$ROOT" ]; then
+            echo "Projeto Android completo não encontrado no ZIP"
+            exit 1
+          fi
+          cp -a "$ROOT"/. .
+          chmod +x gradlew
+
+      - name: Compilar APK
+        run: ./gradlew assembleDebug
+
+      - name: Disponibilizar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-debug-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          
