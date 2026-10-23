@@ -110,11 +110,58 @@ function localAnswer(raw){
   if(/obrigad/.test(q)) return "À disposição. Ainda estou em fase de protótipo.";
   return "Recebi: “"+raw+"”. Ainda estou no modo demonstração e não tenho uma IA online conectada. A próxima etapa é configurar um backend seguro para enviar mensagens a um modelo de IA.";
 }
-function submit(text){
-  text=(text||input.value).trim(); if(!text)return;
-  addMessage("user",text); input.value="";
-  const response=localAnswer(text); setTimeout(()=>addMessage("jarvis",response),180);
+
+const JARVIS_API = "https://jarvis-apk.syntek-shipping00.workers.dev/chat";
+
+async function submit(text) {
+  text = (text || input.value).trim();
+  if (!text) return;
+
+  addMessage("user", text);
+  input.value = "";
+
+  const button = document.querySelector("#form button");
+  button.disabled = true;
+  $("statusText").textContent = "CONSULTANDO IA...";
+  $("hint").textContent = "O JARVIS está pensando...";
+
+  try {
+    const response = await fetch(JARVIS_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Erro HTTP " + response.status);
+    }
+
+    if (typeof data.reply !== "string" || !data.reply.trim()) {
+      throw new Error("O servidor não retornou uma resposta válida.");
+    }
+
+    $("mode").textContent = "IA ONLINE";
+    $("statusText").textContent = "IA CONECTADA";
+    $("hint").textContent = "Assistente conectado ao Gemini";
+    addMessage("jarvis", data.reply);
+  } catch (error) {
+    console.error("Erro na API do JARVIS:", error);
+    addMessage(
+      "jarvis",
+      "Não consegui conectar à IA agora. Verifique o Worker e tente novamente. Detalhe: " +
+        error.message
+    );
+    $("statusText").textContent = "ERRO DE CONEXÃO";
+  } finally {
+    button.disabled = false;
+    if ($("statusText").textContent === "CONSULTANDO IA...") {
+      $("statusText").textContent = "SISTEMA PRONTO";
+    }
+  }
 }
+  
 $("form").addEventListener("submit",e=>{e.preventDefault();submit()});
 document.querySelectorAll("[data-command]").forEach(b=>b.addEventListener("click",()=>submit(b.dataset.command)));
 $("clearBtn").addEventListener("click",()=>{messages=[];chat.replaceChildren();try{localStorage.removeItem(STORE)}catch(e){};addMessage("jarvis","Conversa limpa. Sistemas prontos.")});
